@@ -1,7 +1,6 @@
-PRAGMA foreign_keys = ON;
 
--- Table: Players
-CREATE TABLE IF NOT EXISTS players (
+-- Players Table
+CREATE TABLE players (
     fide_id TEXT PRIMARY KEY,
     nom TEXT,
     titre TEXT,
@@ -9,60 +8,45 @@ CREATE TABLE IF NOT EXISTS players (
     pays TEXT,
     age INTEGER,
     annee_naissance INTEGER,
-    status TEXT DEFAULT 'active'
+    status TEXT
 );
 
--- Table: Rankings
-CREATE TABLE IF NOT EXISTS rankings (
+-- Rankings Table
+CREATE TABLE rankings (
     ranking_id INTEGER PRIMARY KEY AUTOINCREMENT,
     fide_id TEXT,
-    year_month TEXT, -- Format: 'YYYY-MM'
-    elo_type TEXT CHECK (elo_type IN ('standard', 'rapid', 'blitz')),
-    elo INTEGER,
-    UNIQUE (fide_id, year_month, elo_type),
-    FOREIGN KEY (fide_id) REFERENCES players(fide_id)
+    date TEXT,
+    elo_type TEXT,
+    elo INTEGER
 );
 
--- Table: Tournaments
-CREATE TABLE IF NOT EXISTS tournaments (
+-- Tournaments Table
+CREATE TABLE tournaments (
     tournament_id INTEGER PRIMARY KEY,
     nom TEXT,
     lieu TEXT,
-    date_debut DATE,
-    date_fin DATE,
-    format TEXT CHECK (format IN ('standard', 'rapid', 'blitz')),
-    vainqueur_id TEXT,
-    FOREIGN KEY (vainqueur_id) REFERENCES players(fide_id)
+    date_debut TEXT,
+    date_fin TEXT,
+    format TEXT,
+    vainqueur_id TEXT
 );
 
--- Table: Games
-CREATE TABLE IF NOT EXISTS games (
+-- Games Table
+CREATE TABLE games (
     game_id INTEGER PRIMARY KEY,
     tournament_id INTEGER,
-    date DATE,
+    date TEXT,
     joueur_blanc_id TEXT,
     joueur_noir_id TEXT,
-    resultat TEXT CHECK (resultat IN ('1-0', '0-1', '1/2-1/2')),
-    format TEXT CHECK (format IN ('standard', 'rapid', 'blitz')),
-    FOREIGN KEY (tournament_id) REFERENCES tournaments(tournament_id),
-    FOREIGN KEY (joueur_blanc_id) REFERENCES players(fide_id),
-    FOREIGN KEY (joueur_noir_id) REFERENCES players(fide_id),
-    elo_change_white INTEGER,
-    elo_change_black INTEGER
+    resultat TEXT,
+    format TEXT
 );
 
--- Table: Tournament Registrations
-CREATE TABLE IF NOT EXISTS tournament_registrations (
-    registration_id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- Tournament Registrations Table
+CREATE TABLE tournament_registrations (
+    registration_id INTEGER PRIMARY KEY,
     fide_id TEXT,
     tournament_id INTEGER,
-    registration_date DATE,
-    status TEXT DEFAULT 'registered',
-    FOREIGN KEY (fide_id) REFERENCES players(fide_id),
-    FOREIGN KEY (tournament_id) REFERENCES tournaments(tournament_id)
+    registration_date TEXT,
+    status TEXT
 );
-
-
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_rankings_fide_id_date ON rankings(fide_id, year_month);
-CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
