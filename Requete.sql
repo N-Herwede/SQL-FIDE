@@ -1,9 +1,4 @@
--- Fichier : queries.sql
--- Exécution : sqlite3 Fide_chess.db < queries.sql
--- --------------------------------------------------
-
 -- SECTION 1 : CRÉATION & MODIFICATION
---------------------------------------------------
 
 -- 1.1  Créer un nouveau joueur fictif
 INSERT INTO players (fide_id, name, title, country, rating, birth_year, gender)
@@ -37,14 +32,11 @@ WHERE  fide_id = 119;
 DELETE FROM registrations
 WHERE  tournament_id = 30 AND fide_id = 999001;
 
--- 1.7  Supprimer un tournoi (cascade)
+-- 1.7  Supprimer un tournoi 
 DELETE FROM tournaments
 WHERE  tournament_id = 30;
 
-
-
 -- SECTION 2 : CLASSEMENTS INSTANTANÉS
---------------------------------------------------
 
 -- 2.1  Top 10 mondial
 SELECT fide_id, name, rating
@@ -95,10 +87,7 @@ SELECT * FROM v_top_blitz LIMIT 10;
 -- 2.8  Top 10 Rapid (via vue)
 SELECT * FROM v_top_rapid LIMIT 10;
 
-
-
 -- SECTION 3 : STATISTIQUES GLOBALES
---------------------------------------------------
 
 -- 3.1  Nombre de joueurs par titre
 SELECT title, COUNT(*) AS nb
@@ -178,10 +167,7 @@ WHERE  tournament_id = 1
 ORDER  BY points_par_partie DESC
 LIMIT  10;
 
-
-
 -- SECTION 4 : ÉVOLUTION & ARCHIVAGE
---------------------------------------------------
 
 -- 4.1  Vue : classement le plus récent
 CREATE VIEW IF NOT EXISTS v_rankings_latest AS
@@ -264,10 +250,7 @@ FROM   diff
 WHERE  gain >= 50 AND (rank_old - rank_new) >= 10
 ORDER  BY gain DESC;
 
-
-
--- SECTION 5 : AUTOMATISATION / TRIGGERS / INDEX
---------------------------------------------------
+-- SECTION 5 : AUTOMATISATION 
 
 -- 5.1  Trigger : mise à jour automatique du rating
 CREATE TRIGGER IF NOT EXISTS trg_update_player_rating
@@ -291,7 +274,7 @@ CREATE TABLE IF NOT EXISTS deletions_log (
     deleted_at TEXT
 );
 
--- 5.3  Trigger : log avant suppression d'un tournoi
+-- 5.3  log avant suppression d'un tournoi
 CREATE TRIGGER IF NOT EXISTS trg_log_tournament_delete
 BEFORE DELETE ON tournaments
 BEGIN
@@ -306,13 +289,8 @@ WHERE fide_id NOT IN (SELECT fide_id FROM rankings)
                        UNION
                       SELECT black_id FROM games);
 
--- 5.5  Index pour accélérer joueurs par pays
-CREATE INDEX IF NOT EXISTS idx_players_country ON players(country);
 
--- 5.6  Index pour accélérer les requêtes par tournoi dans games
-CREATE INDEX IF NOT EXISTS idx_games_tour ON games(tournament_id);
-
--- 5.7  Trigger : archivage auto lors de l'insertion d'une partie
+-- 5.6  Archivage auto lors de l'insertion d'une partie
 CREATE TRIGGER IF NOT EXISTS trg_archive_on_game
 AFTER INSERT ON games
 BEGIN
@@ -330,8 +308,162 @@ BEGIN
                        AND year    = strftime('%Y','now'));
 END;
 
--- 5.8  Maintenance ponctuelle : compresser la base
-VACUUM;
+-- SECTION 6 : VUES & ANALYSES
 
--- 5.9  Optimisation automatique (SQLite >= 3.31)
-PRAGMA optimize;
+-- 6.1  Classement final d’un tournoi (points + départage)
+CREATE VIEW IF NOT EXISTS v_tournament_standings AS
+WITH scores AS (
+  SELECT g.tournament_id,
+         p.fide_id,
+         p.name,
+         SUM( CASE
+                 WHEN g.white_id = p.fide_id AND g.result = '1-0' THEN 1
+                 WHEN g.black_id = p.fide_id AND g.result = '0-1' THEN 1
+                 WHEN g.result = '1/2-1/2' THEN 0.5
+                 ELSE 0
+              END )                           AS pts
+  FROM   games g
+  JOIN   players p
+         ON p.fide_id = g.white_id OR p.fide_id = g.black_id
+  GROUP  BY g.tournament_id, p.fide_id
+),
+sb AS (
+  -- somme des points des adversaires battus + moitié des nuls
+  SELECT s1.tournament_id,
+         s1.fide_id,
+         SUM(
+           CASE
+             WHEN (g.white_id = s1.fide_id AND g.result = '1-0')
+               OR (g.black_id = s1.fide_id AND g.result = '0-1')
+             THEN s2.pts
+             WHEN g.result = '1/2-1/2' THEN 0.5 * s2.pts
+             ELSE 0
+           END
+         ) AS sb_score
+  FROM   scores s1
+  JOIN   games  g
+         ON g.tournament_id = s1.tournament_id
+        AND (g.white_id = s1.fide_id OR g.black_id = s1.fide_id)
+  JOIN   scores s2   -- adversaire
+         ON s2.tournament_id = g.tournament_id
+        AND ( (g.white_id = s1.fide_id AND s2.fide_id = g.black_id)
+           OR   (g.black_id = s1.fide_id AND s2.fide_id = g.white_id) )
+  GROUP  BY s1.tournament_id, s1.fide_id
+)
+SELECT s.tournament_id,
+       s.fide_id,
+       s.name,
+       s.pts,
+       sb.sb_score,
+       RANK() OVER (PARTITION BY s.tournament_id
+                    ORDER BY s.pts DESC, sb.sb_score DESC) AS classement
+FROM   scores s
+JOIN   sb      USING (tournament_id, fide_id);
+
+-- Exemple : classement du tournoi 1
+SELECT * FROM v_tournament_standings
+WHERE  tournament_id = 1
+ORDER  BY classement;
+
+
+-- 6.2  Bilan 1vs1 global pour chaque joueurs
+CREATE VIEW IF NOT EXISTS v_h2h_summary AS
+SELECT LEAST(white_id, black_id) AS p1,
+       GREATEST(white_id, black_id) AS p2,
+       SUM(CASE WHEN white_id < black_id AND result = '1-0'
+                 OR white_id > black_id AND result = '0-1' THEN 1 ELSE 0 END) AS win_p1,
+       SUM(result = '1/2-1/2')                                                AS draws,
+       SUM(CASE WHEN white_id < black_id AND result = '0-1'
+                 OR white_id > black_id AND result = '1-0' THEN 1 ELSE 0 END) AS win_p2
+FROM   games
+GROUP  BY p1, p2;
+
+-- Exemple : historique entre fidéles joueur a id  119 et 190
+SELECT p1, p2, win_p1, draws, win_p2
+FROM   v_h2h_summary
+WHERE  p1 = 119 AND p2 = 190;
+
+
+-- 6.3  Vue : progression annuelle d’Elo par joueur
+CREATE VIEW IF NOT EXISTS v_yearly_progress AS
+SELECT fide_id,
+       year,
+       MAX(rating) AS best_rating,
+       MIN(rating) AS lowest_rating,
+       MAX(rating) - MIN(rating) AS delta
+FROM   rankings
+GROUP  BY fide_id, year;
+
+-- Exemple : top 10 des plus fortes progressions en 2025
+SELECT p.name, v.delta
+FROM   v_yearly_progress v
+JOIN   players p USING (fide_id)
+WHERE  year = 2025
+ORDER  BY v.delta DESC
+LIMIT  10;
+
+
+-- 6.4  Vue : top joueur par pays (Elo standard)
+CREATE VIEW IF NOT EXISTS v_country_top AS
+SELECT country,
+       fide_id,
+       name,
+       rating
+FROM   (
+  SELECT country, fide_id, name, rating,
+         ROW_NUMBER() OVER (PARTITION BY country ORDER BY rating DESC) AS rk
+  FROM   players
+) t
+WHERE  rk = 1;
+
+-- Exemple : top 20 pays
+SELECT * FROM v_country_top
+ORDER  BY rating DESC
+LIMIT  20;
+
+
+-- 6.5  La forme récente  de chaque joueur sue les 5 dernières parties
+CREATE VIEW IF NOT EXISTS v_recent_form AS
+WITH last5 AS (
+  SELECT game_id,
+         fide_id,
+         result,
+         ROW_NUMBER() OVER (PARTITION BY fide_id ORDER BY game_id DESC) AS rn
+  FROM (
+    SELECT game_id, white_id AS fide_id,
+           CASE result WHEN '1-0' THEN 'W'
+                       WHEN '0-1' THEN 'L'
+                       ELSE 'D' END AS result
+    FROM   games
+    UNION ALL
+    SELECT game_id, black_id AS fide_id,
+           CASE result WHEN '0-1' THEN 'W'
+                       WHEN '1-0' THEN 'L'
+                       ELSE 'D' END
+    FROM   games
+  )
+)
+SELECT fide_id,
+       GROUP_CONCAT(result, '') AS last5_results
+FROM   last5
+WHERE  rn <= 5
+GROUP  BY fide_id;
+
+-- Exemple : forme du joueur 119
+SELECT p.name, f.last5_results
+FROM   v_recent_form f
+JOIN   players p USING (fide_id)
+WHERE  fide_id = 119;
+
+
+-- 6.6  Distribution d'âge par tranche de 10 ans
+CREATE VIEW IF NOT EXISTS v_age_bucket AS
+SELECT ((strftime('%Y','now') - birth_year)/10)*10 AS tranche,
+       COUNT(*) AS nb
+FROM   players
+WHERE  birth_year IS NOT NULL
+GROUP  BY tranche
+ORDER  BY tranche;
+
+-- Exemple : afficher la distribution
+SELECT * FROM v_age_bucket;
