@@ -1,10 +1,10 @@
 -- SECTION 1 : CRÉATION & MODIFICATION
 
--- 1.1  Créer un nouveau joueur fictif
+-- 1.1  Créer ou inscrire un nouveau joueur 
 INSERT INTO players (fide_id, name, title, country, rating, birth_year, gender)
 VALUES (999001, 'Joueur Test', 'CM', 'FRA', 2100, 2005, 'M');
 
--- 1.2  Créer un nouveau tournoi rapide
+-- 1.2  Créer un nouveau tournoi avec cadence ici appelé Summer Rapid Cup
 INSERT INTO tournaments (tournament_id, name, city, country, start_date, end_date)
 VALUES (30, 'Summer Rapid Cup', 'Lyon', 'FRA', '2025-08-02', '2025-08-04');
 
