@@ -5,9 +5,9 @@
 PRAGMA foreign_keys = OFF;
 BEGIN TRANSACTION;
 
-----------------------------------------------------------------
--- Players  (CSV = 11 colonnes ; table finale = 7)
-----------------------------------------------------------------
+------------------------------------------------------------
+-- Players  (CSV = 11 colonnes → table finale = 7)
+------------------------------------------------------------
 DROP TABLE IF EXISTS players_tmp;
 CREATE TABLE players_tmp (
     fide_id        INTEGER,
@@ -20,51 +20,33 @@ CREATE TABLE players_tmp (
     birth_year     INTEGER,
     gender         TEXT,
     age            INTEGER,
-    dummy          TEXT          -- colonne excédentaire
+    dummy          TEXT
 );
 
-.import --skip 1 Data/FIDE_Mars_2025.csv   players_tmp
-.import --skip 1 Data/FIDE_Avril_2025.csv  players_tmp
+.import --skip 1 Data/FIDE_Mars_2025.csv  players_tmp
+.import --skip 1 Data/FIDE_Avril_2025.csv players_tmp
 
 INSERT OR IGNORE INTO players (fide_id, name, title, country, rating, birth_year, gender)
 SELECT fide_id,
        name,
        title,
        country,
-       elo_standard,     -- rating standard
+       elo_standard,
        birth_year,
        gender
 FROM   players_tmp;
 
 DROP TABLE players_tmp;
 
-----------------------------------------------------------------
--- Tournaments  (CSV = 7 colonnes, on garde les 6 premières)
-----------------------------------------------------------------
-DROP TABLE IF EXISTS tournaments_tmp;
-CREATE TABLE tournaments_tmp (
-    tournament_id INTEGER,
-    name          TEXT,
-    city          TEXT,
-    country       TEXT,
-    start_date    DATE,
-    end_date      DATE,
-    extra         TEXT        -- colonne en trop
-);
+------------------------------------------------------------
+-- Tournaments  (CSV = 6 colonnes identiques au schéma)
+------------------------------------------------------------
+DELETE FROM tournaments;                       -- purger les anciennes lignes
+.import --skip 1 Data/Tournaments.csv tournaments
 
-.import --skip 1 Data/Tournaments.csv tournaments_tmp
-
-INSERT OR REPLACE INTO tournaments
-       (tournament_id, name, city, country, start_date, end_date)
-SELECT tournament_id,  name, city, country, start_date, end_date
-FROM   tournaments_tmp
-WHERE  tournament_id IS NOT NULL;
-
-DROP TABLE tournaments_tmp;
-
-----------------------------------------------------------------
--- Rankings  (staging + INSERT OR IGNORE pour éviter les doublons)
-----------------------------------------------------------------
+------------------------------------------------------------
+-- Rankings  (staging + INSERT OR IGNORE)
+------------------------------------------------------------
 DROP TABLE IF EXISTS rankings_tmp;
 CREATE TABLE rankings_tmp (
     fide_id  INTEGER,
@@ -74,8 +56,8 @@ CREATE TABLE rankings_tmp (
     year     INTEGER
 );
 
-.import --skip 1 Data/Rankings_Mars.csv   rankings_tmp
-.import --skip 1 Data/Rankings_Avril.csv  rankings_tmp
+.import --skip 1 Data/Rankings_Mars.csv  rankings_tmp
+.import --skip 1 Data/Rankings_Avril.csv rankings_tmp
 
 INSERT OR IGNORE INTO rankings
 SELECT fide_id, rating, rank, month, year
@@ -83,9 +65,9 @@ FROM   rankings_tmp;
 
 DROP TABLE rankings_tmp;
 
-----------------------------------------------------------------
--- Registrations  (exemple Paris Open 2025)
-----------------------------------------------------------------
+------------------------------------------------------------
+-- Registrations  (Paris Open 2025)
+------------------------------------------------------------
 DROP TABLE IF EXISTS registrations_staging;
 CREATE TABLE registrations_staging (
     tournament_id     INTEGER,
@@ -109,14 +91,13 @@ FROM   registrations_staging;
 
 DROP TABLE registrations_staging;
 
-----------------------------------------------------------------
--- Games  (on désactive puis ré‑active le trigger)
-----------------------------------------------------------------
-DROP TRIGGER IF EXISTS trg_game_registration_check;   -- désactivation
+------------------------------------------------------------
+-- Games  (désactivation puis ré‑activation du trigger)
+------------------------------------------------------------
+DROP TRIGGER IF EXISTS trg_game_registration_check;
 
 .import --skip 1 Data/Games.csv games
 
--- ré‑activation du trigger
 CREATE TRIGGER trg_game_registration_check
 BEFORE INSERT ON games
 FOR EACH ROW
