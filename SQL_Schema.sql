@@ -1,19 +1,19 @@
 PRAGMA foreign_keys = OFF;
 BEGIN TRANSACTION;
 
--- Players
+-- Players , Table des joueurs avec un seul enregistrement par numéro FIDE
 CREATE TABLE IF NOT EXISTS players (
-    fide_id        INTEGER PRIMARY KEY,
-    name           TEXT    NOT NULL,
-    title          TEXT,
-    country        TEXT,
-    rating         INTEGER,
-    birth_year     INTEGER,
-    gender         TEXT,
-    fide_join_date DATE         
+    fide_id        INTEGER PRIMARY KEY,  -- identifiant officiel FIDE
+    name           TEXT    NOT NULL,    -- nom complet
+    title          TEXT,  -- GM, IM, FM, WGM…
+    country        TEXT,  -- code pays sur trois lettres
+    rating         INTEGER,  -- Elo standard le plus récent
+    birth_year     INTEGER,    -- année de naissance
+    gender         TEXT,   -- 'M' ou 'F'
+    fide_join_date DATE        
 );
 
--- Tournaments
+-- Tournaments fait par LLM
 CREATE TABLE IF NOT EXISTS tournaments (
     tournament_id  INTEGER PRIMARY KEY AUTOINCREMENT,
     name           TEXT    NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
     end_date       DATE
 );
 
--- Games
+-- Games Partie généreé par LLM
 CREATE TABLE IF NOT EXISTS games (
     game_id        INTEGER PRIMARY KEY AUTOINCREMENT,
     tournament_id  INTEGER NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS games (
     FOREIGN KEY (black_id)      REFERENCES players(fide_id)          ON DELETE CASCADE
 );
 
--- Rankings
+-- Rankings Table garder en demonstration
 CREATE TABLE IF NOT EXISTS rankings (
     fide_id  INTEGER NOT NULL,
     rating   INTEGER NOT NULL,
