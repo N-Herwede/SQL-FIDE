@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS players (
     sexe TEXT,
     pays TEXT,
     age INTEGER,
-    annee_naissance INTEGER
+    annee_naissance INTEGER,
+    status TEXT DEFAULT 'active'
 );
 
 -- Table: Rankings
@@ -45,7 +46,9 @@ CREATE TABLE IF NOT EXISTS games (
     format TEXT CHECK (format IN ('standard', 'rapid', 'blitz')),
     FOREIGN KEY (tournament_id) REFERENCES tournaments(tournament_id),
     FOREIGN KEY (joueur_blanc_id) REFERENCES players(fide_id),
-    FOREIGN KEY (joueur_noir_id) REFERENCES players(fide_id)
+    FOREIGN KEY (joueur_noir_id) REFERENCES players(fide_id),
+    elo_change_white INTEGER,
+    elo_change_black INTEGER
 );
 
 -- Table: Tournament Registrations
@@ -58,3 +61,8 @@ CREATE TABLE IF NOT EXISTS tournament_registrations (
     FOREIGN KEY (fide_id) REFERENCES players(fide_id),
     FOREIGN KEY (tournament_id) REFERENCES tournaments(tournament_id)
 );
+
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_rankings_fide_id_date ON rankings(fide_id, year_month);
+CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
