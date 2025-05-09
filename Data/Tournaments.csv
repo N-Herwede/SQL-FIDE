@@ -1,4 +1,0 @@
-tournament_id,nom,lieu,date_debut,date_fin,format,vainqueur_id
-1,Tournament 1,Paris,2025-04-10,2025-04-15,blitz,119
-3,Tournament 3,New York,2025-02-08,2025-02-15,blitz,430
-4,Tournament 4,Oslo,2025-04-08,2025-04-15,blitz,315
