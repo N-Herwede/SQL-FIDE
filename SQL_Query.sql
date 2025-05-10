@@ -5,7 +5,7 @@ INSERT INTO players (fide_id, name, title, country, rating, birth_year, gender)
 VALUES (999001, 'Joueur Test', 'CM', 'FRA', 2100, 2005, 'M');
 
 -- 1.2  Créer un nouveau tournoi avec cadence ici appelé Summer Rapid Cup
-INSERT INTO tournaments (tournament_id, name, city, country, start_date, end_date)
+INSERT INTO tournaments (tournament_id, name, location, category, start_date, end_date)
 VALUES (30, 'Summer Rapid Cup', 'Lyon', 'FRA', '2025-08-02', '2025-08-04');
 
 -- 1.3  Inscrire 8 meilleurs Elo au tournoi 30
@@ -188,18 +188,21 @@ ORDER  BY l.rating DESC
 LIMIT  20;
 
 -- 4.3  Archivage mensuel : copier ratings actuels
-INSERT INTO rankings (fide_id, rating, rank, month, year)
-SELECT fide_id,
-       rating,
-       ROW_NUMBER() OVER (ORDER BY rating DESC),
-       strftime('%m','now'),
-       strftime('%Y','now')
-FROM   players
-WHERE  NOT EXISTS (SELECT 1
-                   FROM rankings
-                   WHERE fide_id = players.fide_id
-                     AND month   = strftime('%m','now')
-                     AND year    = strftime('%Y','now'));
+INSERT INTO rankings (
+  fide_id, rating, elo_rapid, elo_blitz, rank, month, year)
+SELECT
+  p.fide_id,p.rating,p.elo_rapid,p.elo_blitz,
+  ROW_NUMBER() OVER (ORDER BY p.rating DESC),
+  strftime('%m','now'),
+  strftime('%Y','now')
+FROM players p
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM rankings r
+  WHERE r.fide_id = p.fide_id
+    AND r.month   = strftime('%m','now')
+    AND r.year    = strftime('%Y','now'));
+
 
 -- 4.4   évolution Elo entre deux mois
 CREATE VIEW IF NOT EXISTS v_rating_diff AS
